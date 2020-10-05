@@ -1,6 +1,6 @@
 import pathlib, stat, shutil, urllib.request, subprocess, time
 import json, sys
-import os, tarfile, psutil
+import os, psutil
 
 def _log(message):
 	print("[%s] %s" % (time.strftime("%H:%M:%S", time.localtime()), message))
@@ -19,9 +19,9 @@ def _killproc(name):
 		if proc.name() == name:
 			proc.kill()
 
-def _setupSSHD(token, region):
+def _setupNgrok(token, region):
 	if not os.path.isfile("./ngrok"):
-		_log("Downloading and installing ngrok...")
+		_log("Downloading ngrok...")
 		_download("https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip", "ngrok.zip")
 		shutil.unpack_archive("ngrok.zip")
 		os.remove("ngrok.zip")
@@ -46,28 +46,20 @@ def _setupSSHD(token, region):
 	
 	return url, ngrok_proc
 
-def _setupProxy(url, protocol):
-	proxy3_ver = "0.8.13"
-	
-	proxy3_url = "https://github.com/z3APA3A/3proxy/archive/{0}.tar.gz".format(proxy3_ver)
-	
-	proxy3_dir = "3proxy-{0}".format(proxy3_ver)
-	proxy3_makefile = "Makefile.Linux"
-	proxy3_cfgdir = "/usr/local/etc/3proxy"
-	proxy3_cfgfile = os.path.join(proxy3_cfgdir, "3proxy.cfg")
-	
-	if not shutil.which("3proxy"):
-		_log("Downloading and installing 3proxy...")
-		_download(proxy3_url, "3proxy.tar.gz")
-		with tarfile.open("3proxy.tar.gz", "r:gz") as tar:
-			tar.extractall()
-		os.remove("3proxy.tar.gz")
-		
-		subprocess.run(["make", "-C", proxy3_dir, "-f", proxy3_makefile], check=True)
-		subprocess.run(["make", "-C", proxy3_dir, "-f", proxy3_makefile, "install"], check=True)
-		shutil.rmtree(proxy3_dir)
+def _setupProxy(protocol):
+	if not os.path.isfile("./3proxy"):
+		_log("Downloading 3proxy...")
+		_download("https://raw.githubusercontent.com/LoveEevee/remocolab/master/3proxy.zip", "3proxy.zip")
+		shutil.unpack_archive("3proxy.zip")
+		os.remove("3proxy.zip")
+		pathlib.Path("3proxy").chmod(stat.S_IXUSR)
+		pathlib.Path("socks").chmod(stat.S_IXUSR)
+		pathlib.Path("proxy").chmod(stat.S_IXUSR)
 	else:
 		_killproc("3proxy")
+	
+	proxy3_cfgdir = "/usr/local/etc/3proxy"
+	proxy3_cfgfile = os.path.join(proxy3_cfgdir, "3proxy.cfg")
 	
 	pathlib.Path(proxy3_cfgdir).mkdir(parents=True, exist_ok=True)
 	with open(proxy3_cfgfile, "w+") as f:
@@ -78,19 +70,10 @@ def _setupProxy(url, protocol):
 		f.close()
 	
 	_log("Running the proxy server...")
-	proxy3_proc = subprocess.Popen(["3proxy", proxy3_cfgfile])
+	proxy3_proc = subprocess.Popen(["./3proxy", proxy3_cfgfile])
 	time.sleep(1)
 	if proxy3_proc.poll() != None:
 		raise RuntimeError("Failed to run 3proxy. Return code: {0}\nSee runtime log for more info.".format(proxy3_proc.returncode))
-	
-	_log("Ready!")
-	index = url.find(":")
-	print("Protocol: {0}".format(protocol))
-	if index != -1:
-		print("Server: {0}".format(url[:index]))
-		print("Port: {0}".format(url[index+1:]))
-	else:
-		print("Server: {0}".format(url))
 	
 	return proxy3_proc
 
@@ -103,8 +86,17 @@ def setupProxy(token="", region="eu", protocol="SOCKS5"):
 		region = region[:index]
 	
 	_log("Starting...")
-	url, ngrok_proc = _setupSSHD(token, region)
-	proxy3_proc = _setupProxy(url, protocol)
+	url, ngrok_proc = _setupNgrok(token, region)
+	proxy3_proc = _setupProxy(protocol)
+	
+	_log("Ready!")
+	index = url.find(":")
+	print("Protocol: {0}".format(protocol))
+	if index != -1:
+		print("Server: {0}".format(url[:index]))
+		print("Port: {0}".format(url[index+1:]))
+	else:
+		print("Server: {0}".format(url))
 	
 	try:
 		while True:
