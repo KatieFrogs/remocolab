@@ -49,7 +49,7 @@ def _setupNgrok(token, region):
 def _setupProxy(protocol):
 	if not os.path.isfile("./3proxy"):
 		_log("Downloading 3proxy...")
-		_download("https://raw.githubusercontent.com/LoveEevee/remocolab/master/3proxy.zip", "3proxy.zip")
+		_download("https://raw.githubusercontent.com/KatieFrogs/remocolab/master/3proxy.zip", "3proxy.zip")
 		shutil.unpack_archive("3proxy.zip")
 		os.remove("3proxy.zip")
 		pathlib.Path("3proxy").chmod(stat.S_IXUSR)
